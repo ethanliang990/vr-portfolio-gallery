@@ -19,15 +19,18 @@
     <header class="hud top-hud">
       <a class="brand" href="#top" aria-label="Spatial portfolio home">SP<span>°</span></a>
       <div class="location"><span class="beacon"></span> YOUR DIGITAL GALLERY / 01</div>
-      <button class="text-button" type="button" id="reset-view">Reset view</button>
+      <div class="top-actions">
+        <button class="text-button" type="button" id="toggle-ui" aria-pressed="false">Clean view</button>
+        <button class="text-button" type="button" id="reset-view">Reset view</button>
+      </div>
     </header>
 
     <main id="top" class="hud experience-copy">
       <p class="eyebrow">INTERACTIVE PORTFOLIO TEMPLATE</p>
       <h1>Look around.<br /><em>Find your story.</em></h1>
-      <p class="lede">Drag to explore this 3D room, then click an illuminated object to open one part of your portfolio.</p>
+      <p class="lede">Drag empty space to look around. Click an illuminated object for its story, or drag it and let go to throw it.</p>
       <div class="instructions" aria-label="How to use this experience">
-        <span><kbd>drag</kbd> look around</span>
+        <span><kbd>drag</kbd> look / throw objects</span>
         <span><kbd>click</kbd> explore an object</span>
       </div>
     </main>
@@ -48,6 +51,9 @@
     </button>
 
     <dialog class="info-panel" id="info-panel" aria-labelledby="panel-title">
+      <div class="panel-drag-handle" id="panel-drag-handle" title="Drag this window">
+        <span>OBJECT NOTES</span><span class="drag-dots">⋮⋮</span>
+      </div>
       <button class="panel-close" id="close-panel" type="button" aria-label="Close panel">×</button>
       <p class="panel-number" id="panel-number">01 / OBJECT</p>
       <h2 id="panel-title">[SECTION TITLE]</h2>
