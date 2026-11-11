@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="An interactive 3D portfolio gallery template." />
+    <title>Spatial Portfolio — Template</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <canvas id="scene" aria-label="Interactive 3D portfolio gallery"></canvas>
+
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="cursor-dot" aria-hidden="true"></div>
+
+    <header class="hud top-hud">
+      <a class="brand" href="#top" aria-label="Spatial portfolio home">SP<span>°</span></a>
+      <div class="location"><span class="beacon"></span> YOUR DIGITAL GALLERY / 01</div>
+      <button class="text-button" type="button" id="reset-view">Reset view</button>
+    </header>
+
+    <main id="top" class="hud experience-copy">
+      <p class="eyebrow">INTERACTIVE PORTFOLIO TEMPLATE</p>
+      <h1>Look around.<br /><em>Find your story.</em></h1>
+      <p class="lede">Drag to explore this 3D room, then click an illuminated object to open one part of your portfolio.</p>
+      <div class="instructions" aria-label="How to use this experience">
+        <span><kbd>drag</kbd> look around</span>
+        <span><kbd>click</kbd> explore an object</span>
+      </div>
+    </main>
+
+    <aside class="hud object-key" aria-label="Gallery map">
+      <p>GALLERY OBJECTS</p>
+      <ol>
+        <li><span>01</span> About me</li>
+        <li><span>02</span> Projects</li>
+        <li><span>03</span> Experience</li>
+        <li><span>04</span> Contact</li>
+      </ol>
+    </aside>
+
+    <button class="start-hint" id="start-hint" type="button">
+      <span class="start-hint__ring"></span>
+      <span>Begin exploring</span>
+    </button>
+
+    <dialog class="info-panel" id="info-panel" aria-labelledby="panel-title">
+      <button class="panel-close" id="close-panel" type="button" aria-label="Close panel">×</button>
+      <p class="panel-number" id="panel-number">01 / OBJECT</p>
+      <h2 id="panel-title">[SECTION TITLE]</h2>
+      <p id="panel-body">[Add a short introduction to this part of your portfolio.]</p>
+      <a class="panel-link" id="panel-link" href="#top">[OPTIONAL LINK OR ACTION] <span>↗</span></a>
+    </dialog>
+
+    <div class="loading" id="loading" role="status">
+      <span class="loading-mark">SP°</span>
+      <span>Building your space</span>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="assets/js/gallery.js"></script>
+  </body>
+</html>
