@@ -15,7 +15,6 @@ const panelTitle = document.querySelector("#panel-title");
 const panelBody = document.querySelector("#panel-body");
 const panelLink = document.querySelector("#panel-link");
 
-const EDGE_RADIUS = 7.8;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -23,106 +22,174 @@ renderer.setClearColor(0x08090b, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x08090b, 0.047);
-const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 100);
-const view = { yaw: -0.11, pitch: -0.1, distance: 12, target: new THREE.Vector3(0, 1.7, 0), yawVelocity: 0, pitchVelocity: 0 };
+scene.fog = new THREE.FogExp2(0x08090b, 0.034);
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.rotation.order = "YXZ";
+const galleryRing = new THREE.Group();
+scene.add(galleryRing);
+
+const view = { yaw: 0, pitch: -0.12, fov: 62, yawVelocity: 0 };
 const pointer = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
-const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-const floorHit = new THREE.Vector3();
-const dragOffset = new THREE.Vector3();
 const clickable = [];
 const clock = new THREE.Clock();
-let draggingCamera = false;
-let activeObject = null;
-let hovered = null;
+let draggingLook = false;
 let moved = false;
 let lastX = 0;
 let lastY = 0;
-let lastObjectTime = 0;
+let lastMoveTime = 0;
 let panelDrag = null;
+let hovered = null;
+let openId = null;
+let centerpiece = null;
 
 function updateCamera() {
-  view.pitch = THREE.MathUtils.clamp(view.pitch, -0.75, 0.45);
-  const spherical = new THREE.Spherical(view.distance, Math.PI / 2 - view.pitch, view.yaw);
-  camera.position.setFromSpherical(spherical).add(view.target);
-  camera.lookAt(view.target);
+  view.pitch = THREE.MathUtils.clamp(view.pitch, -0.7, 0.55);
+  camera.position.set(0, 1.62, 0);
+  camera.rotation.set(view.pitch, 0, 0);
+  if (camera.fov !== view.fov) {
+    camera.fov = view.fov;
+    camera.updateProjectionMatrix();
+  }
+  galleryRing.rotation.y = view.yaw;
 }
 
-function addSpace() {
-  scene.add(new THREE.HemisphereLight(0xb9c7db, 0x11110d, 1.1));
-  const key = new THREE.DirectionalLight(0xf6eee2, 2.1);
-  key.position.set(3, 8, 5);
+function addEnvironment() {
+  scene.add(new THREE.HemisphereLight(0xcad7e8, 0x08090b, 1.25));
+  const key = new THREE.DirectionalLight(0xf6eee2, 2.2);
+  key.position.set(2.5, 6, 3);
   scene.add(key);
-  const lime = new THREE.PointLight(0xcaff5e, 27, 15, 2);
-  lime.position.set(-4, 3.6, -1);
+  const lime = new THREE.PointLight(0xcaff5e, 18, 15, 2);
+  lime.position.set(-3, 2.6, -3);
   scene.add(lime);
-  const warm = new THREE.PointLight(0xff8269, 15, 14, 2);
-  warm.position.set(4, 2, -4);
-  scene.add(warm);
-
+  const coral = new THREE.PointLight(0xff8269, 12, 14, 2);
+  coral.position.set(3.5, 2.5, -2);
+  scene.add(coral);
   const voidFloor = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshBasicMaterial({ color: 0x050608 }));
   voidFloor.rotation.x = -Math.PI / 2;
-  voidFloor.position.y = -0.12;
+  voidFloor.position.y = -0.13;
   scene.add(voidFloor);
-
-  const platform = new THREE.Mesh(new THREE.CylinderGeometry(EDGE_RADIUS, EDGE_RADIUS, 0.2, 96), new THREE.MeshStandardMaterial({ color: 0x111419, metalness: 0.54, roughness: 0.68 }));
-  platform.position.y = -0.1;
+  const platform = new THREE.Mesh(new THREE.CylinderGeometry(7.75, 7.75, 0.22, 96), new THREE.MeshStandardMaterial({ color: 0x10141b, metalness: 0.45, roughness: 0.73 }));
+  platform.position.y = -0.11;
   scene.add(platform);
-
-  [2.1, 4.5, 6.5].forEach((radius, index) => {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.008, radius + 0.008, 96), new THREE.MeshBasicMaterial({ color: index === 2 ? 0xcaff5e : 0x536052, transparent: true, opacity: index === 2 ? 0.09 : 0.12, side: THREE.DoubleSide }));
+  [1.4, 3.2, 5.15, 6.85].forEach((radius, index) => {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.009, radius + 0.009, 96), new THREE.MeshBasicMaterial({ color: index === 3 ? 0xcaff5e : 0x536052, transparent: true, opacity: index === 3 ? 0.13 : 0.11, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.012;
     scene.add(ring);
   });
-
-  const edge = new THREE.Mesh(new THREE.TorusGeometry(EDGE_RADIUS, 0.022, 6, 120), new THREE.MeshBasicMaterial({ color: 0xcaff5e, transparent: true, opacity: 0.18 }));
-  edge.rotation.x = Math.PI / 2;
-  edge.position.y = 0.025;
-  scene.add(edge);
-
-  const starGeometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(900 * 3);
+  const stars = new THREE.BufferGeometry();
+  const positions = new Float32Array(1100 * 3);
   for (let i = 0; i < positions.length; i += 3) {
     const radius = THREE.MathUtils.randFloat(8, 42);
     const angle = THREE.MathUtils.randFloat(0, Math.PI * 2);
     positions[i] = Math.cos(angle) * radius;
-    positions[i + 1] = THREE.MathUtils.randFloat(-1.5, 17);
+    positions[i + 1] = THREE.MathUtils.randFloat(-1.5, 18);
     positions[i + 2] = Math.sin(angle) * radius;
   }
-  starGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xe9f0ee, size: 0.022, transparent: true, opacity: 0.72 })));
+  stars.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  scene.add(new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xe9f0ee, size: 0.022, transparent: true, opacity: 0.72 })));
 }
 
-function objectGeometry(kind) {
-  if (kind === "orb") return new THREE.IcosahedronGeometry(0.88, 2);
-  if (kind === "arch") return new THREE.TorusGeometry(0.95, 0.22, 12, 64, Math.PI);
-  if (kind === "tower") return new THREE.OctahedronGeometry(0.96, 0);
-  return new THREE.BoxGeometry(1.55, 1.55, 0.18);
+function labelTexture(text, color) {
+  const badge = document.createElement("canvas");
+  badge.width = 560;
+  badge.height = 170;
+  const context = badge.getContext("2d");
+  context.fillStyle = "#0c1015";
+  context.fillRect(0, 0, badge.width, badge.height);
+  context.strokeStyle = "#" + new THREE.Color(color).getHexString();
+  context.lineWidth = 9;
+  context.strokeRect(10, 10, badge.width - 20, badge.height - 20);
+  context.fillStyle = "#edf2ef";
+  context.font = "600 48px monospace";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(text, badge.width / 2, badge.height / 2 + 4);
+  const texture = new THREE.CanvasTexture(badge);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function addCenterpiece() {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.76, 0.4, 12), new THREE.MeshStandardMaterial({ color: 0x171d26, metalness: 0.68, roughness: 0.31 }));
+  base.position.y = 0.2;
+  group.add(base);
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.82, 0.14), new THREE.MeshStandardMaterial({ color: 0x15211a, emissive: 0x52711d, emissiveIntensity: 0.7, metalness: 0.34, roughness: 0.3 }));
+  screen.position.set(0, 0.96, -0.7);
+  screen.rotation.x = -0.18;
+  group.add(screen);
+  const globe = new THREE.Group();
+  globe.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 16), new THREE.MeshStandardMaterial({ color: 0x0d2430, emissive: 0x1f9ec9, emissiveIntensity: 0.48, metalness: 0.48, roughness: 0.27, wireframe: true })));
+  globe.add(new THREE.Mesh(new THREE.TorusGeometry(0.53, 0.018, 6, 48), new THREE.MeshBasicMaterial({ color: 0x74b9ff, transparent: true, opacity: 0.72 })));
+  globe.position.set(0, 0.76, 0);
+  group.add(globe);
+  [[-1.7, -0.65, 0xcaff5e], [1.7, -0.55, 0xff8269], [0.2, 1.75, 0x74b9ff]].forEach(([x, z, color], index) => {
+    const toy = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18 + index * 0.025, 1), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, metalness: 0.45, roughness: 0.3 }));
+    toy.position.set(x, 0.52 + index * 0.05, z);
+    group.add(toy);
+  });
+  group.userData.globe = globe;
+  galleryRing.add(group);
+  centerpiece = group;
+}
+
+function addProp(group, prop, color) {
+  const material = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.24, metalness: 0.45, roughness: 0.27 });
+  if (prop === "globe") {
+    const globe = new THREE.Mesh(new THREE.SphereGeometry(0.34, 20, 14), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, metalness: 0.4, roughness: 0.28, wireframe: true }));
+    globe.position.set(0, 1.46, 0.2);
+    group.add(globe);
+    const orbit = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.012, 5, 36), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 }));
+    orbit.position.copy(globe.position);
+    orbit.rotation.x = 0.9;
+    group.add(orbit);
+  } else if (prop === "cartridges") {
+    [-0.34, 0, 0.34].forEach((x, index) => {
+      const cartridge = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.55 + index * 0.08, 0.14), material.clone());
+      cartridge.position.set(x, 1.35 + index * 0.035, 0.18);
+      cartridge.rotation.z = (index - 1) * 0.15;
+      group.add(cartridge);
+    });
+  } else if (prop === "terminal") {
+    const terminal = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.52, 0.13), new THREE.MeshStandardMaterial({ color: 0x15201b, emissive: color, emissiveIntensity: 0.3, metalness: 0.62, roughness: 0.25 }));
+    terminal.position.set(0, 1.42, 0.19);
+    terminal.rotation.x = -0.13;
+    group.add(terminal);
+  } else {
+    const signal = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.075, 10, 36), material);
+    signal.position.set(0, 1.42, 0.2);
+    signal.rotation.x = Math.PI / 2;
+    group.add(signal);
+  }
 }
 
 function addExhibit(exhibit, index) {
   const group = new THREE.Group();
-  group.position.set(...exhibit.position);
-  group.rotation.y = index * 0.7;
+  const radius = 5.35;
+  group.position.set(Math.sin(exhibit.angle) * radius, 0, -Math.cos(exhibit.angle) * radius);
+  group.rotation.y = -exhibit.angle;
   const color = new THREE.Color(exhibit.color);
-  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.03, 0.48, 40), new THREE.MeshStandardMaterial({ color: 0x151a1e, metalness: 0.7, roughness: 0.34 }));
-  plinth.position.y = 0.24;
-  group.add(plinth);
-  const core = new THREE.Mesh(objectGeometry(exhibit.geometry), new THREE.MeshStandardMaterial({ color, metalness: 0.36, roughness: 0.22, emissive: color, emissiveIntensity: 0.2 }));
-  core.position.y = 1.5;
-  group.add(core);
-  const halo = new THREE.Mesh(new THREE.RingGeometry(1.14, 1.18, 64), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }));
-  halo.rotation.x = -Math.PI / 2;
-  halo.position.y = 0.52;
-  group.add(halo);
-  const light = new THREE.PointLight(color, 7, 5.8, 2);
-  light.position.y = 1.7;
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.04, 0.42, 28), new THREE.MeshStandardMaterial({ color: 0x161c24, metalness: 0.7, roughness: 0.32 }));
+  pedestal.position.y = 0.21;
+  group.add(pedestal);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.78, 1.1, 0.16), new THREE.MeshStandardMaterial({ color: 0x10161d, metalness: 0.48, roughness: 0.24, emissive: color, emissiveIntensity: 0.07 }));
+  body.position.y = 1.34;
+  group.add(body);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.92, 1.25, 0.04), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.52 }));
+  frame.position.set(0, 1.34, -0.11);
+  group.add(frame);
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(1.57, 0.48), new THREE.MeshBasicMaterial({ map: labelTexture(exhibit.label, exhibit.color), transparent: true }));
+  label.position.set(0, 1.31, 0.091);
+  group.add(label);
+  addProp(group, exhibit.prop, exhibit.color);
+  const light = new THREE.PointLight(color, 4.6, 3.4, 2);
+  light.position.set(0, 1.65, 0.34);
   group.add(light);
-  group.userData = { exhibit, core, halo, originY: core.position.y, phase: index * 1.61, velocity: new THREE.Vector3(), held: false, returning: false };
+  group.userData = { exhibit, body, frame, phase: index * 1.4 };
   clickable.push(group);
-  scene.add(group);
+  galleryRing.add(group);
 }
 
 function resetPanelPosition() {
@@ -134,6 +201,7 @@ function resetPanelPosition() {
 }
 
 function openPanel(exhibit) {
+  openId = exhibit.id;
   panelNumber.textContent = exhibit.number;
   panelTitle.textContent = exhibit.title;
   panelBody.textContent = exhibit.body;
@@ -144,7 +212,10 @@ function openPanel(exhibit) {
   else { panel.style.animation = "none"; panel.offsetHeight; panel.style.animation = ""; }
 }
 
-function closeInfo() { if (panel.open) panel.close(); }
+function closeInfo() {
+  openId = null;
+  if (panel.open) panel.close();
+}
 
 function updatePointer(event) {
   pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -163,86 +234,56 @@ function getIntersected() {
   return object || null;
 }
 
-function pointOnPlatform() {
-  raycaster.setFromCamera(pointer, camera);
-  return raycaster.ray.intersectPlane(floorPlane, floorHit) ? floorHit.clone() : null;
-}
-
-function beginObjectDrag(object, event) {
-  activeObject = object;
-  object.userData.held = true;
-  object.userData.returning = false;
-  object.userData.velocity.set(0, 0, 0);
-  const point = pointOnPlatform();
-  dragOffset.copy(object.position).sub(point || object.position);
-  dragOffset.y = 0;
-  lastObjectTime = event.timeStamp || performance.now();
-  canvas.classList.add("is-object-dragging");
-}
-
-function moveObject(event) {
-  const point = pointOnPlatform();
-  if (!point || !activeObject) return;
-  const next = point.add(dragOffset);
-  const now = event.timeStamp || performance.now();
-  const delta = Math.max((now - lastObjectTime) / 1000, 1 / 120);
-  activeObject.userData.velocity.set((next.x - activeObject.position.x) / delta, 0, (next.z - activeObject.position.z) / delta).clampLength(0, 14);
-  activeObject.position.x = next.x;
-  activeObject.position.z = next.z;
-  activeObject.position.y = 0;
-  lastObjectTime = now;
-}
-
 canvas.addEventListener("pointerdown", (event) => {
   if (panel.open) return;
   updatePointer(event);
   moved = false;
+  draggingLook = true;
   lastX = event.clientX;
   lastY = event.clientY;
+  lastMoveTime = event.timeStamp || performance.now();
+  view.yawVelocity = 0;
   canvas.setPointerCapture(event.pointerId);
+  canvas.classList.add("is-dragging");
   startHint.classList.add("is-hidden");
-  const hit = getIntersected();
-  if (hit) beginObjectDrag(hit, event);
-  else {
-    draggingCamera = true;
-    view.yawVelocity = 0;
-    view.pitchVelocity = 0;
-    canvas.classList.add("is-dragging");
-  }
 });
 
 canvas.addEventListener("pointermove", (event) => {
   updatePointer(event);
+  if (!draggingLook) {
+    hovered = getIntersected();
+    canvas.style.cursor = hovered ? "pointer" : "grab";
+    return;
+  }
   const dx = event.clientX - lastX;
   const dy = event.clientY - lastY;
   if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-  if (activeObject) moveObject(event);
-  else if (draggingCamera) {
-    view.yaw -= dx * 0.006;
-    view.pitch += dy * 0.005;
-    view.yawVelocity = -dx * 0.0018;
-    view.pitchVelocity = dy * 0.0015;
-  } else {
-    hovered = getIntersected();
-    canvas.style.cursor = hovered ? "pointer" : "grab";
-  }
+  const now = event.timeStamp || performance.now();
+  const delta = Math.max((now - lastMoveTime) / 1000, 1 / 120);
+  const yawChange = -dx * 0.0053;
+  view.yaw += yawChange;
+  view.pitch += dy * 0.004;
+  view.yawVelocity = THREE.MathUtils.lerp(view.yawVelocity, yawChange / delta, 0.4);
   lastX = event.clientX;
   lastY = event.clientY;
+  lastMoveTime = now;
 });
 
 canvas.addEventListener("pointerup", (event) => {
   try { canvas.releasePointerCapture(event.pointerId); } catch { }
-  canvas.classList.remove("is-dragging", "is-object-dragging");
-  if (activeObject) {
-    const released = activeObject;
-    released.userData.held = false;
-    if (!moved) { released.userData.velocity.set(0, 0, 0); openPanel(released.userData.exhibit); }
-    activeObject = null;
+  canvas.classList.remove("is-dragging");
+  draggingLook = false;
+  if (!moved) {
+    updatePointer(event);
+    const hit = getIntersected();
+    if (hit) openPanel(hit.userData.exhibit);
+    view.yawVelocity = 0;
+  } else {
+    view.yawVelocity = THREE.MathUtils.clamp(view.yawVelocity, -3.9, 3.9);
   }
-  draggingCamera = false;
 });
 canvas.addEventListener("pointerleave", () => cursor.classList.remove("is-visible"));
-canvas.addEventListener("wheel", (event) => { event.preventDefault(); view.distance = THREE.MathUtils.clamp(view.distance + event.deltaY * 0.01, 7.6, 16); }, { passive: false });
+canvas.addEventListener("wheel", (event) => { event.preventDefault(); view.fov = THREE.MathUtils.clamp(view.fov + event.deltaY * 0.03, 35, 80); }, { passive: false });
 
 cleanButton.addEventListener("click", () => {
   const clean = document.body.classList.toggle("is-clean");
@@ -251,11 +292,10 @@ cleanButton.addEventListener("click", () => {
 });
 startHint.addEventListener("click", () => startHint.classList.add("is-hidden"));
 resetButton.addEventListener("click", () => {
-  view.yaw = -0.11;
-  view.pitch = -0.1;
-  view.distance = 12;
+  view.yaw = 0;
+  view.pitch = -0.12;
+  view.fov = 62;
   view.yawVelocity = 0;
-  view.pitchVelocity = 0;
   closeInfo();
 });
 closePanel.addEventListener("click", closeInfo);
@@ -276,10 +316,8 @@ panelHandle.addEventListener("pointerdown", (event) => {
 });
 panelHandle.addEventListener("pointermove", (event) => {
   if (!panelDrag) return;
-  const width = panel.offsetWidth;
-  const height = panel.offsetHeight;
-  panel.style.left = THREE.MathUtils.clamp(event.clientX - panelDrag.x, 8, window.innerWidth - width - 8) + "px";
-  panel.style.top = THREE.MathUtils.clamp(event.clientY - panelDrag.y, 8, window.innerHeight - height - 8) + "px";
+  panel.style.left = THREE.MathUtils.clamp(event.clientX - panelDrag.x, 8, window.innerWidth - panel.offsetWidth - 8) + "px";
+  panel.style.top = THREE.MathUtils.clamp(event.clientY - panelDrag.y, 8, window.innerHeight - panel.offsetHeight - 8) + "px";
 });
 function stopPanelDrag(event) {
   if (!panelDrag) return;
@@ -296,61 +334,31 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-function simulatePhysics(group, delta) {
-  const state = group.userData;
-  if (state.held) return;
-  const position = group.position;
-  const velocity = state.velocity;
-  const radius = Math.hypot(position.x, position.z);
-  if (state.returning || radius > EDGE_RADIUS) {
-    state.returning = true;
-    velocity.x += -position.x * 7.5 * delta;
-    velocity.z += -position.z * 7.5 * delta;
-    velocity.y -= 10 * delta;
-    velocity.multiplyScalar(Math.pow(0.985, delta * 60));
-    position.addScaledVector(velocity, delta);
-    if (position.y < -3.5) { position.y = -3.5; velocity.y = Math.abs(velocity.y) * 0.18; }
-    if (Math.hypot(position.x, position.z) < 1.15 && position.y < -2.7) {
-      position.set(position.x, 0, position.z);
-      velocity.set(0, 3.2, 0);
-      state.returning = false;
-    }
-    return;
-  }
-  velocity.y -= 12 * delta;
-  position.addScaledVector(velocity, delta);
-  if (position.y < 0) {
-    position.y = 0;
-    if (velocity.y < 0) velocity.y *= -0.32;
-    velocity.x *= Math.pow(0.72, delta * 60);
-    velocity.z *= Math.pow(0.72, delta * 60);
-  }
-}
-
-addSpace();
+addEnvironment();
+addCenterpiece();
 exhibits.forEach(addExhibit);
 updateCamera();
+
 function animate() {
   const delta = Math.min(clock.getDelta(), 0.04);
   const elapsed = clock.getElapsedTime();
-  if (!draggingCamera) {
-    view.yaw += view.yawVelocity;
-    view.pitch += view.pitchVelocity;
-    view.yawVelocity *= Math.pow(0.9, delta * 60);
-    view.pitchVelocity *= Math.pow(0.9, delta * 60);
+  if (!draggingLook && view.yawVelocity) {
+    view.yaw += view.yawVelocity * delta;
+    view.yawVelocity *= Math.exp(-delta * 3);
+    if (Math.abs(view.yawVelocity) < 0.01) view.yawVelocity = 0;
   }
   clickable.forEach((group) => {
-    simulatePhysics(group, delta);
     const data = group.userData;
-    data.core.rotation.y += 0.006;
-    if (!data.held) data.core.position.y = data.originY + Math.sin(elapsed * 1.2 + data.phase) * 0.08;
-    data.halo.rotation.z = elapsed * 0.2 + data.phase;
-    const nextScale = THREE.MathUtils.lerp(data.core.scale.x, group === hovered ? 1.11 : 1, 0.12);
-    data.core.scale.setScalar(nextScale);
+    const active = group === hovered || data.exhibit.id === openId;
+    data.body.position.y = 1.34 + Math.sin(elapsed * 1.05 + data.phase) * 0.025;
+    data.frame.material.opacity = THREE.MathUtils.lerp(data.frame.material.opacity, active ? 0.9 : 0.52, 0.1);
+    data.body.material.emissiveIntensity = THREE.MathUtils.lerp(data.body.material.emissiveIntensity, active ? 0.25 : 0.07, 0.1);
   });
+  if (centerpiece && centerpiece.userData.globe) centerpiece.userData.globe.rotation.y += delta * 0.42;
   updateCamera();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
+
 animate();
 window.setTimeout(() => loading.classList.add("is-gone"), 550);
